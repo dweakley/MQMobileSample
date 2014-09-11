@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		xmlns:s="library://ns.adobe.com/flex/spark" title="Directions"
+		viewActivate="{this.onViewActivate();}" 
+		viewDeactivate="{this.onViewDeactivate();}"
+		destructionPolicy="auto" >
+	
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import com.mapquest.*;
+			import com.mapquest.mobile.*;
+			import com.mapquest.services.directions.*;
+			import com.mapquest.tilemap.ShapeCollection;
+			import com.mapquest.tilemap.pois.*;
+			
+			import mx.collections.ArrayCollection;
+			
+			import spark.events.ViewNavigatorEvent;
+			
+			
+		
+			
+			private var strOut:String;
+			private var arrLocations:Array;
+			private var dir:Directions;
+			private var dirOptions:DirectionsOptions;
+			private var obj:Object;
+			private var currentLocNoGPS:Boolean;
+
+			
+			[Bindable]
+			private var acResults:ArrayCollection;
+			private var acDirections:ArrayCollection;
+			private var xml:XML;
+			private var errorCount:int = 0;
+			private var locClickCount:int = 0;
+			private var arrExtraLocations:Array;
+			
+			
+			
+			
+			/*
+			function to handle variable assignments and get things rolling
+			*/
+			private function onViewActivate():void {
+				this.lblError.visible = false;
+				this.txtFromAddress.setFocus();
+				
+				//make a new directions object if one doesn't exist
+				if (!this.dir) {
+					this.dir = new Directions(this.parentApplication.map);
+					
+					// call function to add event listeners for directions object
+					this.addDirectionsListeners();
+				}
+
+				//populate from parent cache if the values exist
+				if (this.parentApplication.directionsLocations) {
+					for (var i:int = 0; i < this.parentApplication.directionsLocations.length; i++) {
+						switch (i) {
+							case 0:
+								this.txtFromAddress.text = String(this.parentApplication.directionsLocations[0]);
+								break;
+							case 1:
+								this.txtToAddress.text = String(this.parentApplication.directionsLocations[1]);
+								break;
+						}
+					}
+				}
+
+				
+				
+			}
+			
+			
+			
+			private function onViewDeactivate():void {
+				//cache the locations to auto-populate the fields the next time we enter this view
+				this.parentApplication.directionsLocations = new Array();
+				if (this.dir && this.dir.locations) {
+					this.parentApplication.directionsLocations = (this.dir.locations as Array).concat();
+				}
+				else {
+					this.parentApplication.directionsLocations.push(this.txtFromAddress.text);
+					this.parentApplication.directionsLocations.push(this.txtToAddress.text);
+				}
+				
+				this.cleanUp();
+			}
+			
+			
+			
+			/*
+			function to clean-up variables on exit
+			*/
+			private function cleanUp():void {
+				this.strOut = null;
+				this.arrLocations = null;
+				this.dir = null;
+				this.dirOptions = null;
+				this.obj = null;
+			}
+			
+			
+			
+			/*
+			function to add event listeners for directions object
+			*/
+			private function addDirectionsListeners():void {
+				this.dir.addEventListener(DirectionsEvent.DIRECTIONS_SUCCESS,this.onRouteSuccess,false,0,true);
+				this.dir.addEventListener(DirectionsEvent.DIRECTIONS_ERROR,this.onRouteError,false,0,true);
+				this.dir.addEventListener(DirectionsEvent.DIRECTIONS_AMBIGUITY,this.onRouteAmbiguity,false,0,true);
+				this.dir.addEventListener(DirectionsEvent.DIRECTIONS_IOERROR,this.onRouteIOError,false,0,true);              
+				
+				if (this.dir.configured) {
+					this.btnRoute.enabled=true;
+				}
+				else {
+					//event listener to handle ready state of directions object 
+					this.dir.addEventListener(DirectionsEvent.DIRECTIONS_READY,this.onDirectionsReady);
+				}
+			}
+			
+			
+			
+			/*
+			event handler called when the directions object is ready to accept requests
+			*/
+			private function onDirectionsReady(e:DirectionsEvent):void {
+				this.btnRoute.enabled=true;
+			}
+			
+			
+			
+			
+			/*
+			function to create directions options object and set it's values based on the parent application's values
+			*/
+			private function setDirectionsOptions():void {
+				if (!this.dirOptions) this.dirOptions = new DirectionsOptions();
+				
+				
+				this.dirOptions.routeType = this.parentApplication.directionsType;
+
+				
+				if (this.parentApplication.distanceUnit == DistanceUnits.MILES) {
+					this.dirOptions.unit = DirectionsConstants.UNIT_MILES;
+				}
+				else {
+					this.dirOptions.unit = DirectionsConstants.UNIT_KILOMETERS;
+				}
+				
+				this.dir.stopTextType = this.parentApplication.directionsPoiText;
+				
+
+				switch (this.parentApplication.directionsLanguage) {
+					case "English":
+						this.dirOptions.locale = "en_US";
+						break;
+					case "Spanish":
+						this.dirOptions.locale = "es_ES";
+						break;
+					case "German":
+						this.dirOptions.locale = "de_DE";
+						break;
+				}
+				
+				
+				switch (this.parentApplication.directionsRibbonColor) {
+					case "blue":
+						this.dir.ribbonProperties.color = 0x0000EE;
+						break;
+					case "red":
+						this.dir.ribbonProperties.color = 0xFC0000;
+						break;
+					case "yellow":
+						this.dir.ribbonProperties.color = 0xFFFF00;
+						break;
+				}
+				
+				
+				this.dir.options = this.dirOptions;
+			}
+			
+			
+			
+			
+			/*
+			called when the "Get Route" button is clicked
+			prepares addresses routing & makes the routing call
+			*/
+			private function doRoute():void {
+				
+				if (this.txtFromAddress.text == this.txtToAddress.text) {
+					this.parentApplication.toggleBusyIndicator(false,this);
+					this.lblError.text = "Error\n\nThe origin and destination are the same.\n\nPlease modify one of the locations and try your route again.";
+					this.lblError.visible = true;
+					return;
+				}
+				
+				this.errorCount = 0;
+				this.lblError.visible = false;
+				
+				this.setDirectionsOptions();
+				
+				//remove any shapes form the map
+				this.parentApplication.removeShapesFromMap();
+
+				//remove the route
+				this.dir.removeRoute();
+				
+				//cretae the locations array onto which the addresses will be pushed
+				this.arrLocations = new Array();
+				
+				//call function to populate the locations from the text boxes
+				this.populateLocations();
+								
+				//assign the array to the directions object's locations 
+				this.dir.locations = this.arrLocations;
+				
+				//route if we have two locations
+				if (this.arrLocations.length >= 2 && this.txtFromAddress.text != "" && this.txtToAddress.text != "") {
+					this.dir.route(); 
+					
+					//make the routing call
+					this.dir.route();
+				}
+				else {
+					this.obj = new Object();
+					
+					if (this.currentLocNoGPS) {
+						//this.lblError.text = "Unable to determine your current location.\nGPS is not supported/enabled.";
+						this.lblError.text = "Erorr\n\nUnable to determine your current location.\n\nGPS is not supported or enabled on this device.\n\nPlease check your device's settings and enable location services for this application.";
+					}
+					else {
+						this.lblError.text = "Error\n\nTwo locations are required to process a route request.\n\nPlease verify your route information.";
+					}
+					
+					this.doErrorTasks();
+				}
+			}
+			
+
+			
+			/*
+			function to determine if either textbx is utilizing "current location"
+			*/
+			private function populateLocations():void {
+				this.getLocation(true);
+				this.getLocation(false);
+			}
+			
+			
+			
+			private function getLocation(isOrigin:Boolean):void {
+				var s:String;
+				if (isOrigin) {
+					s = this.txtFromAddress.text.toLowerCase();
+				}
+				else {
+					s = this.txtToAddress.text.toLowerCase();
+				}
+				
+				var a:Array = s.split(" ");
+				
+				//set from address
+				if (a[0] == "current") {
+					if (this.parentApplication.gpsIsSupported) {
+						this.parentApplication.setGpsLatLng();
+						this.arrLocations.push(this.parentApplication.gpsLatLng);
+					}
+					else {
+						this.currentLocNoGPS = true;
+					}
+					
+				}
+				else if (a[0] == "latlng") {
+					a = String(a[1]).split(",");
+					
+					var ll:LatLng = new LatLng(Number(a[0]),Number(a[1]));
+					this.arrLocations.push(ll);					
+				}
+				else {
+					if (isOrigin) {
+						this.arrLocations.push(this.txtFromAddress.text);
+					}
+					else {
+						this.arrLocations.push(this.txtToAddress.text);
+					}
+				}				
+			}
+			
+			
+			
+			
+			/*
+			function to handle a successful route result
+			*/    
+			private function onRouteSuccess(e:DirectionsEvent):void {
+				this.parentApplication.toggleBusyIndicator(false,this);
+				if (e.routeType != DirectionsConstants.REQUEST_TYPE_ROUTESHAPE) {
+					this.xml = e.xml;
+					this.obj = new Object();
+					this.obj.xml = this.xml;
+					
+					//override defaults for high resolution devices
+					if (this.parentApplication.applicationDPI >= 240) this.makeHighResChanges();
+					
+					if (this.errorCount <= 0) {
+						if (this.navigator) this.navigator.pushView(DirectionsResultView,this.obj);
+					}
+				}
+			}
+			
+			
+			private function makeHighResChanges():void {
+				var sc:ShapeCollection = this.parentApplication.map.getShapeCollection("routeRibbon");
+				
+				var poiCt:int = 0;
+				
+				for (var x:int = 0; x < sc.length; x++) {
+					if (sc.getShapeAtIndex(x) is Poi) {
+						poiCt ++;
+						var p:Poi = sc.getShapeAtIndex(x) as Poi;
+						var i:PinMapIcon = (p.icon as PinMapIcon);
+						i.iconWidth = 48;
+						p.icon = i;
+					
+						var mit:MapIconText;
+						
+						switch (this.parentApplication.directionsPoiText) {
+							case DirectionsConstants.STOP_TEXT_LETTERS:
+								mit = new MapIconText(DirectionsConstants.STOP_LETTERS_ARRAY[poiCt - 1],i.width,i.height);
+								i.addChild(mit);										
+								break;
+							case DirectionsConstants.STOP_TEXT_NUMBERS:
+								mit = new MapIconText(poiCt.toString(),i.width,i.height);
+								i.addChild(mit);
+								break;
+						}
+					}
+				}
+			}
+			
+			
+			/*
+			function to handle an ambiguity in the routeresult
+			*/
+			private function onRouteAmbiguity(e:DirectionsEvent):void {
+				if (this.errorCount == 0) {
+					this.doErrorTasks();
+					this.lblError.text = "Error\n\nWe had difficulty determining one or more of the lcoations you specified.\n\nPlease be more specific about your locations.";
+				}
+			}
+			
+			
+			/*
+			function to handle an ioerror
+			*/
+			private function onRouteIOError(e:DirectionsEvent):void {
+				if (this.errorCount == 0) {
+					this.doErrorTasks();
+					this.lblError.text = "Error\n\nThere was an error communicating with the Directions server.\n\nPlease verify your network connection and try again.";
+				}
+			}
+
+			
+			/*
+			function to handle an error in the result
+			*/
+			private function onRouteError(e:DirectionsEvent):void {
+				if (this.errorCount == 0) {
+					this.doErrorTasks();
+					this.lblError.text = "Error\n\nAn unknown error occurred.\n\nverify the information you entered and try your route again.";
+				}
+			}
+			
+			
+			
+			private function doErrorTasks():void {
+				this.errorCount ++;
+				this.parentApplication.toggleBusyIndicator(false,this);
+				this.lblError.visible = true;
+				this.parentApplication.removeShapesFromMap();
+			}
+
+			
+
+			private function addLocation():void {
+
+				
+				
+			}
+			
+		
+		]]>
+	</fx:Script>
+	
+
+	<s:navigationContent>
+		<s:Button label="Back" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.popView();}}"/>
+	</s:navigationContent>
+	
+	
+	<s:actionContent>
+		<s:Button label="Configure" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.pushView(ConfigureDirectionsView);}}"/>
+	</s:actionContent>
+
+	
+
+	<s:Scroller width="100%" left="7" right="7" top="10" bottom="10">
+		<s:VGroup>
+			<s:Label id="lblFromPrompt" text="From:"/>
+			
+			<s:TextInput id="txtFromAddress" change="{this.lblError.visible = false;}" prompt="From"
+						 tabIndex="0" textAlign="justify"/>
+				
+			<s:Spacer height="15"/>
+					  
+			<s:Label id="lblToPrompt" text="To:"/>
+			
+			<s:TextInput id="txtToAddress" change="{this.lblError.visible = false;}" prompt="To"
+						 tabIndex="1" textAlign="justify"/>
+
+			<s:Spacer height="10"/>
+			
+			<s:HGroup>
+				<s:Button id="btnRoute" label="Get Directions"
+						  click="{this.parentApplication.toggleBusyIndicator(true,this); this.doRoute();}"/>
+				
+				<s:Spacer width="10"/>
+				
+				<!-- 
+					Lots more work to be done here to support multiple route locations
+				
+					<s:Button id="btnAddLoc" label="Add Location"
+						  click="{this.addLocation();}" visible="true"/>
+				-->
+			</s:HGroup>
+
+
+			<s:Spacer height="10"/>
+			
+			<s:Label id="lblError" visible="false" styleName="redLabel" maxWidth="{this.width - 7}"/>
+				
+		</s:VGroup>
+		</s:Scroller>
+
+	
+</s:View>

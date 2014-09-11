@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		xmlns:s="library://ns.adobe.com/flex/spark" title="Location Info"
+		initialize="{this.onViewActivate();}" 
+		viewDeactivate="{this.onViewDeactivate();}"
+		destructionPolicy="auto">
+	
+	
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.this.geoLoc., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import com.mapquest.DistanceUnits;
+			import com.mapquest.LatLng;
+			import com.mapquest.mobile.TextUtil;
+			import com.mapquest.services.directions.DirectionsConstants;
+			import com.mapquest.tilemap.ShapeCollection;
+			import com.mapquest.tilemap.pois.*;
+			
+			
+			[Bindable]
+			private var _data:Object;
+			
+			[Bindable]
+			private var _addrString:String;
+			
+			[Bindable]
+			private var _distString:String;
+			
+			private var _tu:TextUtil;
+			private var _sc:ShapeCollection;
+			
+			
+			
+			
+			
+			
+			
+			private function onViewActivate():void {
+				this._tu = new TextUtil();
+				if (data) {
+					//set our global data object to the data that got passed to us from the previous view
+					this._data = data;
+					
+					//set the name and address from the data
+					this.lblResultName.text = this._data.name;
+					
+					//if we have data fileds (eg: search result object), otherwise it's a geocode result
+					if (this._data.fields) {
+						this.makeAddressString();
+						this.makeDistanceString();
+						this.lblAddress.text = this._addrString + "\n" + this._distString;
+					}
+					else {
+						
+						this.lblAddress.text += "\nLatLng: " + LatLng(this._data.latLng).toString();
+					}
+					
+					//show the phone number if there's one and we're supposed to do it
+					if (this.parentApplication.searchLocationShowPhoneButton && this._data.fields && this._data.fields.Phone) {
+						if (this._data.fields && this._data.fields.Phone && this._data.fields.Phone != "") {
+							this.objPhone.name += " " + this._tu.formatPhone(this._data.fields.Phone);
+						}
+						else {
+							this.alActions.removeItemAt(3);
+						}
+					}
+					else {
+						this.alActions.removeItemAt(3);
+					}
+										
+					//hide the email link if we're not supposed to be showing it
+					if (!this.parentApplication.searchLocationShowEmailButton) this.alActions.removeItemAt(3);
+				}				
+			}
+
+			
+			
+			
+			/*
+			function to handle click of show on map button
+			*/
+			private function onShowOnMapClick():void {
+				this.parentApplication.removeShapesFromMap();
+				
+				var p:Poi = new Poi(new LatLng(0,0));
+				
+				p.infoWindowTitleText = this._data.name;
+				if (this._data.fields) {
+					p.latLng = new LatLng(Number(this._data.fields.lat),Number(this._data.fields.lng));
+					this.makeAddressString();
+					p.infoContent = this._addrString;
+				}
+				else {
+					p.latLng = LatLng(this._data.latLng)
+					p.infoContent = "LatLng: " + p.latLng.toString()	
+					
+				}
+				
+				//override defaults for high resolution devices
+				if (this.parentApplication.applicationDPI >= 240) {
+					var i:PinMapIcon = (p.icon as PinMapIcon);
+					i.iconWidth = 48;
+					p.icon = i;
+				}
+				
+				this.parentApplication.removeShapesFromMap();
+				this._sc = new ShapeCollection();
+				this._sc.name = "searchShapeCollection";
+				this._sc.add(p);
+				
+				this.parentApplication.map.addShapeCollection(this._sc);
+				
+				this.parentApplication.map.bestFit(false,2,16);	
+				
+				if (this.navigator) this.navigator.pushView(MapsView);
+			}
+			
+			
+			
+			
+			
+			private function onViewDeactivate():void {
+				this._data = null;
+				this._addrString = null;
+				this._distString = null;
+				this._tu = null;
+				this._sc = null;
+			}
+			
+			
+			
+			private function makeAddressString():void {
+				this._addrString = new String();
+				
+				if (this._data.fields.address) this._addrString += this._data.fields.address + "\n";
+				
+				if (this._data.fields.city) {
+					this._addrString += this._data.fields.city;
+					if (this._data.fields.state) this._addrString += ", ";
+				}
+				
+				if (this._data.fields.state) this._addrString += this._data.fields.state;
+				
+				if (this._data.fields.postal_code) this._addrString+= " " + this._data.fields.postal_code;
+				
+			}
+			
+			
+			private function makeDistanceString():void {
+				this._distString = new String();
+				
+				if (this._data.distance) {
+					this._distString += "\n" + this._data.distance.toFixed(2);
+					
+					if (this.parentApplication.distanceUnit == DistanceUnits.MILES) {
+						this._distString += " mi";
+					}
+					else {
+						this._distString += " km";
+					}
+					this._distString += " from search location";
+				}
+			}
+			
+			
+			
+			private function prepEmail():void {
+				navigateToURL(new URLRequest("mailto:?subject=Location Information&body=" + this._data.name + "\n" + this._addrString + "\n\n" + this._distString));
+			}
+			
+			
+			
+			private function getDirections(type:String):void {
+				this.parentApplication.directionsLocations = ["",""];
+
+				if (type == "to") {
+					if (this._data.fields) {
+						this.parentApplication.directionsLocations[1] = this._addrString.replace("\n"," ");
+					}
+					else {
+						this.parentApplication.directionsLocations[1] = "latlng " + this._data.latLng;
+					}
+				}
+				else {
+					if (this._data.fields) {
+						this.parentApplication.directionsLocations[0] = this._addrString.replace("\n"," ");
+					}
+					else {
+						this.parentApplication.directionsLocations[0] = "latlng " + this._data.latLng;
+					}
+				}
+				
+				if (this.navigator) this.navigator.pushView(DirectionsView);
+			}
+			
+			
+			
+			private function doAction(e:MouseEvent):void {
+				var o:Object = this.alActions.getItemAt(List(e.currentTarget).selectedIndex);
+				if (this.navigator) {
+					switch (o.name) {
+						case "View on Map":
+							this.parentApplication.toggleBusyIndicator(true,this);
+							this.onShowOnMapClick();
+							break;
+						case "Directions To Here":
+							this.getDirections("to");
+							break;
+						case "Directions From Here":
+							this.getDirections("from");
+							break;
+						case "Call " + this._tu.formatPhone(this._data.fields.Phone):
+							navigateToURL(new URLRequest('tel:' + this._data.fields.Phone));
+							break;
+						case "Email Information":
+							this.prepEmail();
+							break;
+					}
+				}
+			}		
+			
+			
+			
+		]]>
+	</fx:Script>
+	
+
+	
+	<s:navigationContent>
+		<s:Button label="Back" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.popView();}}"/>
+	</s:navigationContent>	
+	
+
+	<s:actionContent>
+		<s:Button label="View on Map" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); this.onShowOnMapClick();}"/>
+	</s:actionContent>
+	
+	
+	
+	<s:Scroller width="100%" height="100%" left="7" right="7" top="10" bottom="10">
+		<s:VGroup>
+				
+			<s:Label id="lblResultName"/>
+				
+			<s:Label id="lblAddress"/>
+					
+			<s:Spacer height="10"/>
+
+		
+			
+			<s:List id="lstSamples" width="100%"
+					click="{this.doAction(event);}" labelField="name">
+				<s:itemRenderer>
+					<fx:Component>
+						<s:IconItemRenderer iconField="icon" iconScaleMode="letterbox" decorator="assets/45/arrow_next.png" cacheAsBitmap="true"/>
+					</fx:Component>
+				</s:itemRenderer>
+				<s:dataProvider>
+					<s:ArrayList id="alActions">
+						<fx:Object name="View on Map" icon="{this.parentApplication.assetPath + 'map_gray.png'}"/>
+						<fx:Object name="Directions To Here" icon="{this.parentApplication.assetPath + 'car_gray.png'}"/>
+						<fx:Object name="Directions From Here" icon="{this.parentApplication.assetPath + 'car_gray.png'}"/>
+						<fx:Object id="objPhone" name="Call" icon="{this.parentApplication.assetPath + 'phone_gray.png'}"/>
+						<fx:Object name="Email Information" icon="{this.parentApplication.assetPath + 'email_gray.png'}"/>
+					</s:ArrayList>
+				</s:dataProvider>
+			</s:List>
+
+		</s:VGroup>
+
+	</s:Scroller>
+
+	
+</s:View>

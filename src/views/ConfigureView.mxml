@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		xmlns:s="library://ns.adobe.com/flex/spark" 
+		title="Configuration"
+		destructionPolicy="auto">
+	
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	
+	
+	<fx:Script>
+		<![CDATA[
+
+			import views.*;
+
+			
+		
+
+			private function loadConfig(e:MouseEvent):void {
+				var o:Object = this.alMenuItems.getItemAt(List(e.currentTarget).selectedIndex);
+				this.parentApplication.toggleBusyIndicator(true,this);
+				if (this.navigator) {
+					switch (o.name) {
+						case "Search Configuration":
+							this.navigator.pushView(ConfigureSearchView);
+							break;
+						case "Directions Configuration":
+							this.navigator.pushView(ConfigureDirectionsView);
+							break;
+						case "Map Configuration":
+							this.navigator.pushView(ConfigureMapView);
+							break;
+						case "About this Application":
+							this.navigator.pushView(AboutView);
+							break;
+					}
+				}
+			}
+	
+			
+		]]>
+	</fx:Script>
+	
+	
+
+	<s:navigationContent>
+		<s:Button label="Back" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.popView();}}"/>
+	</s:navigationContent>
+
+	<s:actionContent>
+		<s:Button id="btnMap" label="Map" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.pushView(MapsView)}}"/>
+	</s:actionContent>
+
+	
+	<s:List id="lstSamples" left="7" top="10" bottom="10" right="7"
+			click="{this.loadConfig(event);}" labelField="name">
+		<s:itemRenderer>
+			<fx:Component>
+				<s:IconItemRenderer iconField="icon" iconScaleMode="letterbox" cacheAsBitmap="true"/>
+			</fx:Component>
+		</s:itemRenderer>
+		<s:dataProvider>
+			<s:ArrayList id="alMenuItems">
+				<fx:Object name="Search Configuration" icon="{this.parentApplication.assetPath + 'loc_gray.png'}"/>
+				<fx:Object name="Directions Configuration" icon="{this.parentApplication.assetPath + 'car_gray.png'}"/>
+				<fx:Object name="Map Configuration" icon="{this.parentApplication.assetPath + 'map_gray.png'}"/>
+				<fx:Object name="About this Application" icon="{this.parentApplication.assetPath + 'question_gray.png'}"/>
+			</s:ArrayList>
+		</s:dataProvider>
+	</s:List>
+
+</s:View>
+	

@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		xmlns:s="library://ns.adobe.com/flex/spark"
+		viewActivate="{this.synchDirectionsOptions();}" viewDeactivate="{this.setDirectionsOptions();}"
+		title="Directions Config" 
+		destructionPolicy="auto">
+	
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<s:RadioButtonGroup id="rdgType"/>
+		<s:RadioButtonGroup id="rdgLanguage"/>
+		<s:RadioButtonGroup id="rdgColor"/>
+		<s:RadioButtonGroup id="rdgText"/>
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import views.*;
+			import com.mapquest.services.directions.DirectionsConstants;
+			import com.mapquest.DistanceUnits;
+			
+
+			
+			/*
+			function to sync the directions options from the parent app
+			*/
+			private function synchDirectionsOptions():void {
+				if (this.parentApplication.directionsType == DirectionsConstants.TYPE_PEDESTRIAN) {
+					this.rdgType.selectedValue = "walking";
+				}
+				else {
+					this.rdgType.selectedValue =this.parentApplication.directionsType;
+				}
+				
+								
+				switch (this.parentApplication.distanceUnit) {
+					case DistanceUnits.MILES:
+						this.swhUnits.selected = true;
+						break;
+					case DistanceUnits.KILOMETERS:
+						this.swhUnits.selected = false;
+						break;
+				}
+				
+				this.swhUnits.visible = true;
+				
+				
+				this.rdgLanguage.selectedValue = this.parentApplication.directionsLanguage;
+				this.rdgColor.selectedValue = this.parentApplication.directionsRibbonColor;
+				this.rdgText.selectedValue = this.parentApplication.directionsPoiText;
+				
+			}	
+			
+			
+			
+			
+			private function setDirectionsOptions():void {				
+			
+				if (this.swhUnits.selected) {
+					this.parentApplication.distanceUnit = DistanceUnits.MILES;
+				}
+				else {
+					this.parentApplication.distanceUnit= DistanceUnits.KILOMETERS;
+				}
+
+				
+				if (this.rdgType.selectedValue == "walking") {
+					this.parentApplication.directionsType = DirectionsConstants.TYPE_PEDESTRIAN
+				}
+				else {
+					this.parentApplication.directionsType = this.rdgType.selectedValue;
+				}
+				
+
+				this.parentApplication.directionsLanguage = this.rdgLanguage.selectedValue;
+				this.parentApplication.directionsRibbonColor =  this.rdgColor.selectedValue;
+				this.parentApplication.directionsPoiText = this.rdgText.selectedValue;
+
+			}
+			
+			
+
+			
+		]]>
+	</fx:Script>
+	
+	<s:navigationContent>
+		<s:Button label="Back" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.popView();}}"/>
+	</s:navigationContent>	
+	
+	
+	<s:actionContent>
+		<s:Button id="btnDirections" label="Directions" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.pushView(DirectionsView)}}"/>
+	</s:actionContent>
+	
+	
+	
+	<s:Scroller width="100%" height="100%"  left="7" right="7" top="10" bottom="10">
+		<s:VGroup>
+			
+			<s:Label text="Directions Type:"/>
+			
+			<s:HGroup>
+				<s:RadioButton label="{DirectionsConstants.TYPE_FASTEST}" groupName="rdgType"/>
+				<s:RadioButton label="{DirectionsConstants.TYPE_SHORTEST}" groupName="rdgType"/>	
+				<s:RadioButton label="walking" groupName="rdgType"/>	
+			</s:HGroup>
+			
+			<s:Spacer height="15"/>
+			
+			<s:Label text="Language:"/>
+			
+			<s:HGroup>
+				<s:RadioButton label="English" groupName="rdgLanguage"/>
+				<s:RadioButton label="Spanish" groupName="rdgLanguage"/>	
+				<s:RadioButton label="German" groupName="rdgLanguage"/>	
+			</s:HGroup>
+			
+			<s:Spacer height="15"/>
+			
+			<s:Label text="Ribbon Color:"/>
+			
+			<s:HGroup>
+				<s:RadioButton label="blue" groupName="rdgColor"/>
+				<s:RadioButton label="red" groupName="rdgColor"/>	
+				<s:RadioButton label="yellow" groupName="rdgColor"/>	
+			</s:HGroup>
+			
+			<s:Spacer height="15"/>
+			
+			<s:Label text="Poi Text:"/>
+			
+			<s:HGroup>
+				<s:RadioButton label="{DirectionsConstants.STOP_TEXT_LETTERS}" groupName="rdgText"/>
+				<s:RadioButton label="{DirectionsConstants.STOP_TEXT_NUMBERS}" groupName="rdgText"/>	
+				<s:RadioButton label="{DirectionsConstants.STOP_TEXT_NONE}" groupName="rdgText"/>	
+			</s:HGroup>	
+			
+			<s:Spacer height="15"/>
+			
+			<s:Label text="Distance Units:"/>
+			<s:ToggleSwitch id="swhUnits" selected="true" slideDuration="100" visible="false" skinClass="skins.ToggleSkin"/>
+			
+		</s:VGroup>
+	</s:Scroller>
+
+</s:View>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009"
+		xmlns:s="library://ns.adobe.com/flex/spark"
+		xmlns:tilemap="com.mapquest.tilemap.*"
+		xmlns:flex="com.mapquest.tilemap.controls.flex.*"
+		title="Maneuver" 
+		viewActivate="{this.onViewActivate();}">
+	
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			
+			private function onViewActivate():void {
+				if (data) {
+					if (data.text) {
+						this.taResult.text = data.text + "\n";
+						
+						if (data.distance != "0.00 mi" || data.distance != "0.00 km") {
+							this.taResult.text += "\nDistance: " + data.distance;
+						}
+						
+						if (data.time != "00:00:00") {
+							this.taResult.text += "\nTime: " + data.time;
+						}
+						
+						if (data.mapUrl) {
+							this.imgMap.width = this.taResult.width;
+							this.imgMap.source = data.mapUrl;
+							this.imgMap.visible = true;
+						}
+
+					}
+					
+					if (data.title) this.title = data.title;
+				}
+			}
+			
+			
+			
+		]]>
+	</fx:Script>
+	
+	
+	<s:navigationContent>
+		<s:Button label="Back" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.popView();}}"/>
+	</s:navigationContent>
+	
+	
+	<s:Scroller width="100%" left="7" right="7" top="10" bottom="10">
+		<s:VGroup>
+			<s:Spacer height="10"/>
+			
+			<s:TextArea id="taResult" editable="false" selectable="true"/>
+			
+			<s:Spacer height="10"/>
+			
+			<s:Image id="imgMap" visible="false" cacheAsBitmap="true"/>
+		</s:VGroup>		
+	</s:Scroller>
+
+</s:View>

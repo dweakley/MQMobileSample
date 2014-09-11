@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009"  xmlns:mx="library://ns.adobe.com/flex/mx"	xmlns:s="library://ns.adobe.com/flex/spark"	xmlns:tilemap="com.mapquest.tilemap.*"
+		viewActivate="{this.onViewActivate();}" 
+		viewDeactivate="{this.onViewDeactivate();}" 
+		creationComplete="{this.onCreationComplete();}"
+		actionBarVisible="false" destructionPolicy="auto">
+	
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import com.mapquest.Config;
+			import com.mapquest.LatLng;
+			import com.mapquest.tilemap.*;
+			import com.mapquest.*;
+			import com.mapquest.tilemap.controls.shadymeadow.SMZoomControl;
+			import com.mapquest.tilemap.pois.*;
+			
+			import spark.events.ViewNavigatorEvent;
+
+			
+			
+			
+			
+			
+			
+			
+			/*
+			view activate event handler to get things rolling
+			*/
+			private function onViewActivate():void {
+				//if there's no map at the parent level, make one
+				if (this.parentApplication.map) {	
+					if (!this.uic.getChildByName("myMap")) this.uic.addChild(this.parentApplication.map);
+				}
+				else {
+					if (!this.parentApplication.map) this.parentApplication.makeMap();
+					this.uic.addChild(this.parentApplication.map);
+				}
+				
+				
+				if (!this.parentApplication.gpsTried) this.parentApplication.initGPS();
+				
+				if (this.parentApplication.gpsTried && this.parentApplication.gpsIsSupported) {
+					this.imgLoc.visible = true;
+					this.parentApplication.setGpsLatLng();
+				}
+				else {
+					this.removeElement(this.imgLoc);
+				}
+			}
+
+
+
+			
+			/*
+			determine the position of the buttons across the bottom of the map, based on the dpi of the application
+			*/
+			private function onCreationComplete():void {
+				switch(this.parentApplication.applicationDPI) {
+					case 160:
+						this.imgBroom.right = 5;
+						this.imgTraffic.right = 54;
+						this.imgConfig.right = 110;
+						this.imgCar.right = 170;
+						this.imgSearch.right = 225;
+						this.imgLoc.right = 272;
+						break;
+					case 240:
+						this.imgBroom.right = 5;
+						this.imgTraffic.right = 85;
+						this.imgConfig.right = 165;
+						this.imgCar.right = 255;
+						this.imgSearch.right = 335;
+						this.imgLoc.right = 410;
+						break;
+					case 320:
+						this.imgBroom.right = 5;
+						this.imgTraffic.right = 100;
+						this.imgConfig.right = 205;
+						this.imgCar.right = 320;
+						this.imgSearch.right = 425;
+						this.imgLoc.right = 542;
+						break;
+				}
+			}
+
+
+			
+			
+			/*
+			event handler called when the view is deactivated
+			*/
+			private function onViewDeactivate():void {
+				//hide the map's infowindow
+				this.parentApplication.map.infoWindow.hide();
+				this.parentApplication.disableTraffic();
+			}
+			
+			
+			
+			/*
+			function to clean all the shapes from the map
+			*/
+			private function cleanMap():void {
+				this.parentApplication.removeShapesFromMap();
+				this.imgTraffic.source = this.parentApplication.assetPath + "stoplight_gray.png";
+				this.onImageMouseUp(null,this.imgBroom);
+			}
+
+			
+			
+			/*
+			function to toggle traffic on the map
+			*/
+			private function onTrafficClick():void {
+				if (!this.parentApplication.trafficEnabled) {
+					this.parentApplication.enableTraffic();
+					this.imgTraffic.source = this.parentApplication.assetPath + "stoplight_green.png";
+				}
+				else {
+					this.parentApplication.disableTraffic();
+					this.imgTraffic.source = this.parentApplication.assetPath + "stoplight_gray.png";
+				}
+
+				this.onImageMouseUp(null,this.imgTraffic)
+			}
+			
+			
+			
+			/*
+			function to resize the clicked button to a smaller size provide a pushed effect
+			the resized size depends on the application dpi
+			*/
+			private function onImageMouseDown(e:MouseEvent, image:Image=null):void {
+				var img:Image;
+				if (image) {
+					img = image;
+				}
+				else {
+					img = e.currentTarget as Image;
+				}
+
+				img.height = this.parentApplication.imgSize - 2;
+				img.width = this.parentApplication.imgSize - 2;
+
+			}
+
+			
+			
+			/*
+			function to resize the clicked button to it's normal size to provide a pushed effect
+			the resized size depends on the application dpi
+			*/
+			private function onImageMouseUp(e:MouseEvent,image:Image=null):void {
+				var img:Image;
+				if (image) {
+					img = image;
+				}
+				else {
+					img = e.currentTarget as Image;
+				}
+				
+				img.height = this.parentApplication.imgSize;
+				img.width = this.parentApplication.imgSize;	
+			}	
+		
+		]]>
+	</fx:Script>
+
+
+	
+	<mx:UIComponent id="uic" width="100%" height="100%" x="0" y="0"/>
+	
+
+	<s:Image id="imgBroom" bottom="2" click="{this.cleanMap();}"
+			 mouseDown="{this.onImageMouseDown(event);}" mouseUp="{this.onImageMouseUp(event);}"
+			 source="{this.parentApplication.assetPath + 'broom_gray.png'}" cacheAsBitmap="true"/>
+	<s:Image id="imgTraffic" bottom="2" click="{this.onTrafficClick();}"
+			 mouseDown="{this.onImageMouseDown(event);}" mouseUp="{this.onImageMouseUp(event);}"
+			 source="{this.parentApplication.assetPath + 'stoplight_gray.png'}" cacheAsBitmap="true"/>
+	<s:Image id="imgConfig" bottom="2" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.pushView(ConfigureView);}}"
+			 mouseDown="{this.onImageMouseDown(event);}" mouseUp="{this.onImageMouseUp(event);}"
+			 source="{this.parentApplication.assetPath + 'gear_gray.png'}" cacheAsBitmap="true"/>
+	<s:Image id="imgSearch" bottom="2" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.pushView(SearchView);}}"
+			 mouseDown="{this.onImageMouseDown(event);}" mouseUp="{this.onImageMouseUp(event);}"
+			 source="{this.parentApplication.assetPath + 'search_gray.png'}" cacheAsBitmap="true"/>
+	<s:Image id="imgCar" bottom="2" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.pushView(DirectionsView);}}"
+			 mouseDown="{this.onImageMouseDown(event);}" mouseUp="{this.onImageMouseUp(event);}"
+			 source="{this.parentApplication.assetPath + 'car_gray.png'}" cacheAsBitmap="true"/>
+	<s:Image id="imgLoc" bottom="2" visible="false" click="{this.parentApplication.addGpsPoi(event);}"
+			 mouseDown="{this.onImageMouseDown(event);}" mouseUp="{this.onImageMouseUp(event);}"
+			 source="{this.parentApplication.assetPath + 'loc_gray.png'}" cacheAsBitmap="true"/>
+
+</s:View>

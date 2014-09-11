@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		xmlns:s="library://ns.adobe.com/flex/spark"
+		viewActivate="{this.onViewActivate();}" 
+		viewDeactivate="{this.onViewDeactivate();}"
+		title="Map Config" 
+		destructionPolicy="auto">
+	
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<s:RadioButtonGroup id="rdgMapType"/>
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import views.*;
+			
+
+			
+			
+			
+			private function onViewActivate():void {
+				switch(this.parentApplication.map.mapType) {
+					case "map":
+						this.rdgMapType.selectedValue = "map";
+						break;
+					case "sat":
+						this.rdgMapType.selectedValue = "satellite";
+						break;
+					case "hyb":
+						this.rdgMapType.selectedValue = "hybrid";
+						break;
+				}
+
+				this.sldFriction.value = this.parentApplication.mapFriction;
+
+				if (this.parentApplication.mapUseZoomControl) {
+					this.swhZoomControl.selected = true;
+				}
+				else {
+					this.swhZoomControl.selected = false;
+				}
+				
+				this.swhZoomControl.visible=true;
+			}
+			
+			
+			
+			
+			private function onViewDeactivate():void {				
+				this.parentApplication.map.mapType =  String(this.rdgMapType.selectedValue).substr(0,3).toLowerCase();
+				
+				if (this.swhZoomControl.selected) {
+						this.parentApplication.mapUseZoomControl = true;
+						this.parentApplication.addZoomControl();
+				}
+				else {
+						this.parentApplication.mapUseZoomControl = false;
+						this.parentApplication.removeZoomControl();
+				}
+
+			}
+			
+			
+			private function changeFriction(e:Event):void {
+				this.parentApplication.mapFriction = this.sldFriction.value;
+				this.parentApplication.map.mapFriction = this.sldFriction.value;
+			}
+			
+			
+			
+			/*
+			function to resize broom icon to be smaller to give pushed effect
+			*/
+			private function onBroomDown():void {
+				this.imgBroom.height = this.parentApplication.imgSize - 2;
+				this.imgBroom.width = this.parentApplication.imgSize - 2;	
+			}
+			
+			
+			
+			/*
+			function to restore brrom icon to its original size
+			*/			
+			private function onBroomUp():void {
+				this.imgBroom.height = this.parentApplication.imgSize;
+				this.imgBroom.width = this.parentApplication.imgSize;	
+			}	
+			
+			
+		]]>
+	</fx:Script>
+	
+	<s:navigationContent>
+		<s:Button label="Back" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.popView();}}"/>
+	</s:navigationContent>	
+	
+	<s:actionContent>
+		<s:Button id="btnMap" label="Map" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.pushView(MapsView)}}"/>
+	</s:actionContent>
+	
+	
+	<s:Scroller width="100%" height="100%" left="7" right="7" top="10" bottom="10">
+		<s:VGroup>
+			
+			<s:Label text="Map Type:"/>
+			<s:HGroup>
+				<s:RadioButton  label="map" groupName="rdgMapType"/>
+				<s:RadioButton label="satellite" groupName="rdgMapType"/>
+				<s:RadioButton label="hybrid" groupName="rdgMapType"/>		
+			</s:HGroup>
+			
+			<s:Spacer height="15"/>
+
+			<s:Label text="Show Zoom Control:"/>
+			<s:ToggleSwitch id="swhZoomControl" selected="true" slideDuration="100" visible="false"/>
+			
+			<s:Spacer height="15"/>
+			
+			<s:Label text="Map Friction:"/>
+			<s:HSlider id="sldFriction" change="{this.changeFriction(event);}" maximum="2.0"
+					   minimum="1.01" stepSize="0.05"/>
+					
+			<s:Spacer height="15"/>
+			
+			<s:VGroup click="{this.parentApplication.removeShapesFromMap();}"
+					  mouseDown="{this.onBroomDown();}" mouseUp="{this.onBroomUp();}">
+				<s:Label text="Clear Map"/>
+				<s:Image id="imgBroom" source="{this.parentApplication.assetPath + 'broom_gray.png'}" cacheAsBitmap="true"/>
+			</s:VGroup>
+
+			
+		</s:VGroup>
+	</s:Scroller>	
+
+</s:View>

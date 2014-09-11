@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009"
+		xmlns:s="library://ns.adobe.com/flex/spark"
+		xmlns:tilemap="com.mapquest.tilemap.*"
+		xmlns:flex="com.mapquest.tilemap.controls.flex.*"
+		title="About this Application" 
+		creationComplete="{this.onCreationComplete();}"
+		viewDeactivate="{this.cleanUp();}"
+		destructionPolicy="auto">
+	
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import flash.events.TextEvent;
+			
+			import spark.components.supportClasses.StyleableTextField;
+			
+			[Bindable]
+			private var s:String;
+			[Bindable]
+			private var tf:TextField;
+			private var fontSize:int = 16;
+			
+			
+			//update with each build
+			private var apiVersion:String = "7.1.5_MQ_MOBILE";
+			private var fxSdkVersion:String = "4.6.0";
+			private var appVersion:String = "1.7.0";
+
+			
+			
+			private function onCreationComplete():void {
+				
+				if (this.parentApplication.applicationDPI != 160) this.fontSize = 26;
+				
+				
+				
+				
+				this.s = "<font color='#000000'size='" + this.fontSize +"'>This application was built using version " + this.apiVersion + " of the MapQuest Mobile Flash Maps API, available </font><a href='http://developer.mapquest.com/web/products/featured/as3-flex-flash-mobile'><font color='#037ECC' size='" + (this.fontSize + 2) + "'><b>here</b></font><font color='#000000'size='" + this.fontSize + "'>.</font></a><br/><br/>";
+								
+				this.s += "<font color='#000000'size='" + this.fontSize + "'>It is provided as a showcase of just a few of the capabilities available through the MapQuest Platform.</font><br/><br/>";
+				
+				this.s += "<font color='#000000'size='" + this.fontSize + "'>The full source code for this application is available for download to help you get started building your own mobile applications.</font></br/><br/><br/>";
+				
+				this.s += "<font color='#000000'size='" + this.fontSize + "'>We are continually improving our API and look forward to your feedback in our <a href='http://developer.mapquest.com/web/products/forums/-/message_boards?_19_mbCategoryId=208306'><font color='#037ECC' size='" + (this.fontSize + 2) + "'><b>forums</b></font></a><font color='#000000'size='" + this.fontSize + "'>.</font>";
+				
+				
+				this.s += "<font color='#000000'size='" + String(this.fontSize - 4) + "'><br><br>App version: " + this.appVersion + "</font><br>";
+				this.s += "<font color='#000000'size='" + String(this.fontSize - 4) + "'>MQ Mobile API version: " + this.apiVersion + "</font><br>";
+				this.s += "<font color='#000000'size='" + String(this.fontSize - 4 ) + "'>Flex SDK version: " + this.fxSdkVersion + "</font><br>";
+				
+				StyleableTextField(this.taInfo.textDisplay).htmlText = s;
+			}
+
+			
+			private function cleanUp():void {
+				this.s = null;
+				this.tf = null;
+			}
+
+			
+			
+		]]>
+	</fx:Script>
+
+	
+	
+
+	<s:navigationContent>
+		<s:Button id="btnBack" label="Back"
+				  click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.popView();}}"
+				  horizontalCenter="0" styleName="backButton"/>
+	</s:navigationContent>
+
+	
+	
+	<s:Scroller width="100%" height="100%" left="7" right="7" top="10" bottom="10">
+		<s:VGroup>
+			<s:TextArea id="taInfo" selectable="true" editable="false" skinClass="spark.skins.mobile.TextAreaSkin"
+						height="100%" width="100%"/>
+		</s:VGroup>
+	</s:Scroller>
+
+</s:View>

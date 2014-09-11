@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		xmlns:s="library://ns.adobe.com/flex/spark"
+		viewActivate="{this.synchSearchOptions();}" 
+		viewDeactivate="{this.setSearchOptions();}"
+		title="Search Config"
+		>
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<s:RadioButtonGroup id="rdgOverlay"/>
+		<s:RadioButtonGroup id="rdgColor"/>
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import views.*;
+			
+			import com.mapquest.DistanceUnits;
+			
+			
+			/*
+			function to synch the search values with the parent app's current values
+			*/
+			private function synchSearchOptions():void {
+				this.txtMaxSearchResults.text = this.parentApplication.searchMaxMatches;
+				
+				this.txtSearchRadius.text = this.parentApplication.searchRadius;
+				
+				
+				if (this.parentApplication.searchShowOverlay) {
+					this.swhOverlay.selected = true;
+				}
+				else {
+					this.swhOverlay.selected = false;
+				}
+				
+				this.searchSwitchToggled();
+				
+				this.swhOverlay.visible = true;
+				
+				this.rdgColor.selectedValue = this.parentApplication.searchOverlayColor;
+				
+				switch (this.parentApplication.distanceUnit) {
+					case DistanceUnits.MILES:
+						this.swhUnits.selected = true;
+						break;
+					case DistanceUnits.KILOMETERS:
+						this.swhUnits.selected = false;
+						break;
+				}
+				
+				this.swhUnits.visible = true;
+			}
+			
+			
+			
+			private function searchSwitchToggled():void {
+				if (this.swhOverlay.selected) {
+					this.rdgColor.enabled = true;
+				}
+				else {
+					this.rdgColor.enabled = false;
+				}
+			}
+			
+			
+			
+			private function setSearchOptions():void {				
+				this.parentApplication.searchMaxMatches = int(this.txtMaxSearchResults.text);
+				this.parentApplication.searchRadius = Number(this.txtSearchRadius.text);
+				
+				if (this.swhUnits.selected) {
+					this.parentApplication.distanceUnit = DistanceUnits.MILES;
+				}
+				else {
+					this.parentApplication.distanceUnit= DistanceUnits.KILOMETERS;
+				}
+				
+				if (this.swhOverlay.selected) {
+					this.parentApplication.searchShowOverlay = true;
+				}
+				else {
+					this.parentApplication.searchShowOverlay = false;
+				}
+				
+				this.parentApplication.searchOverlayColor =  this.rdgColor.selectedValue;
+								
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:navigationContent>
+		<s:Button label="Back" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.popView();}}"/>
+	</s:navigationContent>	
+	
+	<s:actionContent>
+		<s:Button id="btnSearch" label="Search" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.pushView(SearchView)}}"/>
+	</s:actionContent>
+	
+	
+	<s:Scroller width="100%" height="100%" left="7" right="7" top="10" bottom="10">
+		<s:VGroup>
+			<s:Label text="Search Overlay:"/>
+			<s:ToggleSwitch id="swhOverlay" selected="true" slideDuration="100" visible="false" change="{this.searchSwitchToggled();}"/>
+			
+			<s:Spacer height="15"/>
+			
+			<s:Label text="Overlay Color:"/>
+			
+			<s:HGroup>
+				<s:RadioButton label="yellow" groupName="rdgColor"/>
+				<s:RadioButton label="blue" groupName="rdgColor"/>
+				<s:RadioButton label="red" groupName="rdgColor"/>		
+			</s:HGroup>
+			
+			<s:Spacer height="15"/>
+			
+			<s:Label text="Max Search Results:"/>	
+			<s:TextInput id="txtMaxSearchResults" width="{this.width * .2}" textAlign="justify"/>
+			
+			<s:Spacer height="15"/>
+			
+			<s:Label text="Search Radius:"/>
+			<s:TextInput id="txtSearchRadius" width="{this.width * .2}" textAlign="justify"/>
+			
+			<s:Spacer height="15"/>
+			
+			<s:Label text="Distance Units:"/>
+			<s:ToggleSwitch id="swhUnits" selected="true" slideDuration="100" visible="false" skinClass="skins.ToggleSkin"/>
+			
+		</s:VGroup>
+	</s:Scroller>
+
+</s:View>

@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		xmlns:s="library://ns.adobe.com/flex/spark"
+		viewActivate="{this.onViewActivate();}" 
+		viewDeactivate="{this.cleanUp();}"
+		title="Directions"
+		destructionPolicy="auto">
+	
+	
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import com.mapquest.DistanceUnits;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.ArrayList;
+			
+			import spark.core.ContentCache;
+			
+			import views.*;
+			
+			
+			[Bindable]
+			private var alResults:ArrayList = new ArrayList();
+			//static public const CONTENT_CACHE:ContentCache = new ContentCache();
+			
+
+			private function onViewActivate():void {
+				if (this.data && this.data.xml) {
+					this.makeDirectionsList(data.xml);
+					this.btnMap.visible = true;
+				}
+			}
+			
+			
+			
+			
+			private function makeDirectionsList(x:XML):void {
+				var s:String = "";
+				var legs:XMLList = x.route.legs.leg;
+				var maneuvers:XMLList;
+				var maneuver:XMLList;
+				var dirCount:int = 1;
+				
+								
+				
+				for (var i:int = 0; i < legs.length(); i++) {
+					maneuvers = legs[i].maneuvers;
+					
+					for (var j:int = 0; j < maneuvers.length(); j++) {
+						maneuver = maneuvers[j].maneuver;
+						
+						for (var k:int = 0; k < maneuver.length(); k++) {							
+							s = maneuver[k].narrative.text();
+														
+							var o:Object = new Object();
+							o.text = s;
+							
+						
+							if (this.parentApplication.applicationDPI != 160) {
+								o.iconUrl = this.adjustIconUrl(String(maneuver[k].iconUrl));
+							}
+							else {
+								o.iconUrl = String(maneuver[k].iconUrl);
+							}
+							
+							o.mapUrl = this.adjustManeuverMapSize(String(maneuver[k].mapUrl));
+
+							
+							o.number = dirCount;
+							o.distance = Number(maneuver[k].distance.text()).toFixed(2);
+							
+							if (this.parentApplication.distanceUnit == DistanceUnits.MILES) {
+								o.distance += " mi";
+							}
+							else {
+								o.distance += " km";
+							}
+							
+							o.time = maneuver[k].formattedTime.text();
+							
+							this.alResults.addItem(o);
+							
+							dirCount ++;
+						}
+					}
+				}
+				
+				this.lblFrom.text = "From:  " + this.parentApplication.directionsLocations[0];
+				this.lblTo.text = "To:  " + this.parentApplication.directionsLocations[this.parentApplication.directionsLocations.length - 1];
+				
+				this.lblTime.text = "Total Time:  " + x.route.formattedTime.text();
+				this.lblDistance.text = "Total Distance:  " + Number(x.route.distance.text()).toFixed(2);
+				
+				if (this.parentApplication.distanceUnit == DistanceUnits.MILES) {
+					this.lblDistance.text += " mi";
+				}
+				else {
+					this.lblDistance.text += " km";
+				}	
+
+			}
+			
+			
+			private function adjustIconUrl(s:String):String {
+				s = s.replace("_sm.gif",".gif");
+				return s;
+			}
+			
+			
+			
+			/*
+			function to select an appropriately sized maneuevr map based on the application's dpi
+			*/
+			private function adjustManeuverMapSize(s:String):String {
+				switch (this.parentApplication.applicationDPI) {
+					case 160:
+						s = s.replace("size=225,160","size=300,220");
+						break;
+					case 240:
+						s = s.replace("size=225,160","size=460,470");
+						break;
+					case 320:
+						s = s.replace("size=225,160","size=600,500");
+						break;
+				}
+				
+				return s;
+			}
+			
+			
+			
+			
+			private function loadManeuver(e:MouseEvent):void {
+				var o:Object = this.alResults.getItemAt(List(e.currentTarget).selectedIndex);
+				if (this.navigator) this.navigator.pushView(DirectionsManeuverView,o);
+			}
+			
+			
+			
+			private function cleanUp():void {
+				this.alResults = null;
+			}
+			
+
+			
+		]]>
+	</fx:Script>
+	
+	
+	
+	
+	<s:navigationContent>
+		<s:Button label="Back" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.popView();}}"/>
+	</s:navigationContent>	
+
+	
+	<s:actionContent>
+		<s:Button id="btnMap" label="View on Map" styleName="backButton" visible="false" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.pushView(MapsView);}}"/>
+	</s:actionContent>
+	
+
+			<s:VGroup width="100%" left="7" right="7" top="10" bottom="10">
+				<s:VGroup>
+					<s:Label id="lblFrom" styleName="greenLabel" width="85%"/>
+					<s:Label id="lblTo" styleName="redLabel" width="85%"/>
+					
+					<s:Spacer height="3"/>
+					
+					<s:Label id="lblTime" text="Total Time:  "/>
+					<s:Label id="lblDistance" text="Total Distance:  "/>				
+				</s:VGroup>
+				
+				
+				<s:Spacer height="10"/>
+				
+				<s:VGroup width="99%" height="99%" left="7" right="7" top="10" bottom="10">
+					<s:List id="lstDirections" labelField="text" dataProvider="{this.alResults}"
+						click="{this.loadManeuver(event);}" width="99%" height="99%">
+						<s:itemRenderer>
+							<fx:Component>
+								<s:IconItemRenderer iconField="iconUrl" iconScaleMode="letterbox" opaqueBackground="0xFFFFFF" decorator="assets/45/arrow_next.png" cacheAsBitmap="true"/>
+							</fx:Component>
+						</s:itemRenderer>
+					</s:List>					
+				</s:VGroup>
+			</s:VGroup>			
+	
+</s:View>

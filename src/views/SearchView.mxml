@@ -1,0 +1,606 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:View xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		xmlns:s="library://ns.adobe.com/flex/spark" 
+		title="Search"
+		viewActivate="{this.onViewActivate();}" 
+		viewDeactivate="{this.onViewDeactivate();}"
+		destructionPolicy="auto">
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	
+	
+	
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import com.mapquest.*;
+			import com.mapquest.LatLng;
+			import com.mapquest.mobile.TextUtil;
+			import com.mapquest.services.directions.DirectionsConstants;
+			import com.mapquest.services.geocode.*;
+			import com.mapquest.services.search.*;
+			import com.mapquest.tilemap.*;
+			import com.mapquest.tilemap.overlays.*;
+			import com.mapquest.tilemap.pois.*;
+			
+			import mx.collections.ArrayCollection;
+			import mx.managers.CursorManager;
+			import mx.utils.ObjectUtil;
+			
+			import spark.components.BusyIndicator;
+
+
+			
+			private var geocoder:Geocoder;
+			private var search:Search;
+			private var searchRequest:SearchRequestRadius;
+			private var hostedData:SearchHostedData;
+			private var searchOverlay:CircleOverlay;
+			private var searchShapeCollection:ShapeCollection;
+			private var searchOriginPoi:Poi;
+			private var acResults:ArrayCollection;
+			private var textUtil:TextUtil;
+			private var biBusyIndicator:BusyIndicator;
+			
+			
+			/*
+			function to get things rolling
+			*/
+			private function onViewActivate():void {
+				this.txtSearchTerm.setFocus();
+				
+				//if we don't have a search object, let's make one
+				if (!this.search) {
+					this.search = new Search(this.parentApplication.key);
+					this.searchRequest = new SearchRequestRadius();
+					this.addSearchListeners();
+				}
+				
+				//populate the text fields if we cached a previous search
+				if (this.parentApplication.searchTerm) this.txtSearchTerm.text = this.parentApplication.searchTerm;
+				if (this.parentApplication.searchLocation) this.txtSearchOrigin.text = this.parentApplication.searchLocation;
+				
+				//set the properties for the search
+				this.setSearchProperties();
+			}
+			
+
+			
+			private function onViewDeactivate():void {
+				//cache the search so we have the term and location for later
+				this.parentApplication.searchTerm = this.txtSearchTerm.text;
+				this.parentApplication.searchLocation = this.txtSearchOrigin.text;
+				this.cleanUp();
+			}
+			
+			
+			
+			private function cleanUp():void {
+				this. geocoder = null;
+				this. search = null;
+				this. searchRequest = null;
+				this. hostedData = null;
+				this. searchOverlay = null;
+				this. searchShapeCollection = null;
+				this. searchOriginPoi = null;
+				this. acResults = null;
+				this. textUtil = null;
+				this.parentApplication.toggleBusyIndicator(false,this);
+			}
+			
+			
+			
+			/*
+			function to add the search object's event listeners
+			*/
+			private function addSearchListeners():void {
+				this.search.addEventListener(SearchEvent.SEARCH_RESPONSE, this.onSearchResponse,false,0,true);
+				this.search.addEventListener(SearchEvent.SEARCH_ERROR_EVENT, this.onSearchError,false,0,true);
+				this.search.addEventListener(SearchEvent.HTTP_ERROR_EVENT, this.onSearchError,false,0,true);
+				
+				if (this.search.configured) {
+					this.btnSearch.enabled=true;
+				}
+				else {
+					//event listener to handle ready state of directions object 
+					this.search.addEventListener(SearchEvent.SEARCH_READY,this.onSearchReady);
+				}
+			}
+			
+			
+			
+			/*
+			event handler called when the serach object is ready to accept requests
+			*/
+			private function onSearchReady(e:SearchEvent):void {
+				this.btnSearch.enabled = true;
+			}
+			
+			
+			
+			/*
+			functin to set the default properties for the search
+			*/
+			private function setSearchProperties():void {
+				//set the radius to the data in the text field
+				this.searchRequest.radius = this.parentApplication.searchRadius;
+				
+				//set the options max macthes to the text filed value
+				this.searchRequest.maxMatches = this.parentApplication.searchMaxMatches;
+				
+				//set the distance units to be used for the search
+				if (this.parentApplication.distanceUnit == DistanceUnits.MILES) {
+					this.searchRequest.units = "m";
+				}
+				else {
+					this.searchRequest.units = "k";
+				}
+				
+			}
+
+			/*
+			event handler called on a successful search response
+			*/
+			private function onSearchResponse(event:SearchEvent):void {
+				this.parentApplication.toggleBusyIndicator(false,this);
+
+				//make a new array collection
+				this.acResults = new ArrayCollection();
+
+				
+				//make the shape collection for the results
+				this.searchShapeCollection = new ShapeCollection();
+				this.searchShapeCollection.name = "searchShapeCollection";
+
+				
+				//if we have some results let's go process them
+				if (event.searchResponse.results.length >= 1) {
+					//look to see if we're showing the search origin or not
+					if (this.parentApplication.searchShowOrigin) this.addOrigin(event.searchResponse as SearchResponseRadius);
+					
+					//look to see if we're drawing an overlay to represent the search area
+					if (this.parentApplication.searchShowOverlay) this.drawSearchOverlay(event.searchResponse as SearchResponseRadius);
+						
+					//get each result from the collection and add it to the output string
+					for (var i:int = 0; i < event.searchResponse.results.length; i++) {
+						//make a search result object from the response
+						var result:SearchResult = event.searchResponse.results[i];
+						
+						//make the poi for the result
+						this.makeResultPoi(result);
+
+						//make the object to add to the array collection for the list
+						var o:Object = event.searchResponse.results[i];
+						this.acResults.addItem(o);
+					}
+					
+					var obj:Object = new Object();
+					obj.arrayCollection = this.acResults;
+					obj.shapeCollection = this.searchShapeCollection;
+					if (this.navigator) this.navigator.pushView(SearchResultsListView,obj);
+				}
+				else {
+					this.lblError.text = "Error\n\nNo results were found.";
+					this.lblError.visible = true;
+				}
+				
+			}   
+			
+			
+			
+			
+			/*
+			function to create a poi for a search result
+			*/
+			private function makeResultPoi(r:SearchResult):void {
+				//make a new poi
+				var p:Poi = new Poi(new LatLng(Number(r.fields.lat),Number(r.fields.lng)));
+				
+				//set the infowindow title
+				p.infoWindowTitleText = r.fields.name;
+				
+				//make the address string
+				var s:String = new String();
+				s += "<font face='Arial' color='#000000' size='12'>" + r.fields.address + "\n";
+				s += r.fields.city + ", " + r.fields.state + " " + r.fields.postal_code + "\n\n";
+				s += "Phone: " + this.textUtil.formatPhone(r.fields.phone) + "\n\n";
+				s += "Distance: " + r.distance.toFixed(2);
+				
+				//add the distance unit for the result string
+				if (this.parentApplication.distanceUnit == DistanceUnits.MILES) {
+					s += " mi</font>\n";
+				}
+				else {
+					s += " km</font>\n\n";
+				}
+				
+				//set the infowindow content
+				p.infoContent = s;
+				
+				
+				//override defaults for high resolution devices
+				if (this.parentApplication.applicationDPI >= 240) {
+					var i:PinMapIcon = (p.icon as PinMapIcon);
+					i.iconWidth = 48;
+					p.icon = i;
+				}
+				
+				//add the poi to the search shapecollection
+				this.searchShapeCollection.add(p);
+			}
+
+			
+			
+			
+			/*
+			function to add the origin of the search as a poi
+			and draw the circle overlay, representing the radius
+			*/
+			private function addOrigin(response:SearchResponseRadius):void {
+				//make a string for the origin poi's infowindow
+				var strOut:String = new String();
+				
+				// add poi and circle
+				this.searchOriginPoi = new Poi(response.origin.latLng);
+				this.searchOriginPoi.icon = new StarMapIcon(15, 0x00FF00);
+				this.searchOriginPoi.infoWindowTitleText = "Search Origin";
+				this.searchOriginPoi.infoContent = (strOut);
+				
+				//add the origin poi to the search shapecollection
+				this.searchShapeCollection.add(this.searchOriginPoi);
+			}			
+			
+			
+			
+			
+			/*
+			function to draw a circle overlay defining the search radius
+			*/
+			private function drawSearchOverlay(response:SearchResponseRadius):void {
+				this.searchOverlay = new CircleOverlay();
+				
+				var color:uint;
+				
+				switch (this.parentApplication.searchOverlayColor) {
+					case "blue":
+						color = 0x0000EE;
+						break;
+					case "red":
+						color = 0xFC0000;
+						break;
+					case "yellow":
+						color = 0xFFFF00;
+						break;
+				}
+				
+				this.searchOverlay.fillColor = color;
+				this.searchOverlay.fillColorAlpha = this.parentApplication.searchOverlayAlpha;
+				this.searchOverlay.borderColor = color;
+				
+				var shapePts:LatLngCollection = new LatLngCollection();
+				shapePts.add(LatLng(response.origin.latLng));
+				this.searchOverlay.shapePoints = shapePts;
+				
+				this.searchOverlay.radius = response.radius;
+				this.searchOverlay.radiusUnit = this.parentApplication.distanceUnit;
+				
+				this.searchShapeCollection.add(this.searchOverlay);
+			}
+
+			
+			
+			/*
+			event handler for an errored search call
+			*/
+			private function onSearchError(e:Event=null,s:String=null):void {
+				this.parentApplication.toggleBusyIndicator(false,this);
+				this.lblError.text = "An error occurred, please verify the information and try your search again.";
+				this.lblError.visible = true;
+			}
+
+			
+			
+			/*
+			function to prepare and make the radius search call
+			*/
+			private function doSearch():void {
+				this.parentApplication.searchTerm = this.txtSearchTerm.text;
+				this.parentApplication.searchLocation = this.txtSearchOrigin.text;
+				
+				if (!this.textUtil) this.textUtil = new TextUtil();
+				
+				
+				if (this.txtSearchTerm.text != "") { 
+					//set search properties in case they were changed in configuration view
+					this.setSearchProperties();
+										
+					var s:String = this.txtSearchOrigin.text.toLowerCase();
+					s = this.textUtil.removeSpaces(s);
+					
+					//check for 'current location" being used as search origin
+					if (s == "currentlocation") {
+						if (this.parentApplication.gpsIsSupported) {
+							this.parentApplication.setGpsLatLng();
+							this.searchRequest.origin = this.parentApplication.gpsLatLng;
+						}
+						else {
+							//set the origin of the request to the data in the text fields
+							this.searchRequest.origin = this.parentApplication.map.center;
+							
+							//make a new object, add it to the arraycollection, and display the list(error message)
+							this.onSearchError(null,"GPS is not supported or enabled on this device.");
+						}
+	
+					}
+					else {
+						//set the origin of the request to the data in the text fields
+						this.searchRequest.origin = this.txtSearchOrigin.text;
+					}
+					
+					//create the hosted data and it's parameters
+					this.hostedData = new SearchHostedData(this.parentApplication.searchDataBase,"name ILIKE ?",["%" + this.txtSearchTerm.text + "%"]);
+					
+					//set the hosted data for the request
+					this.searchRequest.hostedDataList = [this.hostedData];
+						
+					//call the searchRadius method, passing the request
+					this.search.search(this.searchRequest);
+				}
+				else {
+					//if there's not a search term, just do a geocode
+					this.doGeocode();
+				}
+			}
+			
+			
+			
+
+
+			
+			
+			
+			//********************************************************************************************************************
+				
+			            //GEOCODE STUFF BELOW: if the search term field is not populated, we do a geocode instead
+			
+			//********************************************************************************************************************
+			
+			
+			
+			
+			/*
+			function to initialize the geocoder when the Go button is clicked
+			*/
+			private function doGeocode():void {
+				this.parentApplication.toggleBusyIndicator(true,this);
+
+				if (!this.geocoder) {
+					this.geocoder = new Geocoder(this.parentApplication.key);
+					this.addGeocodeListeners();
+				}
+				
+				
+				var s:String = this.txtSearchOrigin.text.toLowerCase();
+				s = this.textUtil.removeSpaces(s);
+				
+				//check for 'current location" being used as search origin
+				if (s == "currentlocation") {
+					if (!this.txtSearchTerm.text || this.txtSearchTerm.text == "") {
+							if (this.parentApplication.gps && this.parentApplication.gps.isSupported) {
+								this.parentApplication.doCurrentLocCenter(null);
+								this.parentApplication.toggleBusyIndicator(true,this);
+								if (this.navigator) this.navigator.pushView(MapsView);
+								return;
+							}
+					}
+					this.parentApplication.toggleBusyIndicator(true,this);
+					
+					this.parentApplication.removeShapesFromMap();
+					
+					this.searchShapeCollection = new ShapeCollection();
+					this.searchShapeCollection.name = "searchShapeCollection";
+										
+					//make an object to be displayed in the results list
+					this.acResults = new ArrayCollection();
+					
+					var p:Poi;
+					var o:Object = new Object();
+									
+					if (this.parentApplication.gps && this.parentApplication.gps.isSupported) {
+						this.parentApplication.gps.getCurrentLocation();
+						p = new Poi(this.parentApplication.gps.currentLatLng);
+						p.infoWindowTitleText = "Current Location";
+						p.infoContent = "LatLng: " + this.parentApplication.gps.currentLatLng.toString();
+						
+						o.name = p.infoWindowTitleText;
+						o.latLng = p.latLng;
+						
+					}
+					else {
+						this.parentApplication.toggleBusyIndicator(false,this);
+						this.lblError.text = "GPS is not supported or enabled on this device.";
+						this.lblError.visible = true;
+						return;
+					}
+					
+					this.searchShapeCollection.add(p);
+
+					
+					//add the result to the arraycollection
+					this.acResults = new ArrayCollection();
+					this.acResults.addItem(o);	
+					
+				}
+				else {
+					//set the origin of the request to the data in the text fields
+					this.geocoder.geocode(this.txtSearchOrigin.text);
+				}
+		
+			}
+			
+			
+			
+			/*
+			function to add event listeners to the geocode object
+			*/
+			private function addGeocodeListeners():void {
+				this.geocoder.addEventListener(GeocoderEvent.GEOCODE_RESPONSE, this.onGeocodeResponse,false,0,true);
+				this.geocoder.addEventListener(GeocoderEvent.GEOCODE_ERROR_EVENT, this.onSearchError,false,0,true);
+				this.geocoder.addEventListener(GeocoderEvent.HTTP_ERROR_EVENT, this.onSearchError,false,0,true);			
+			}
+			
+			
+			
+			/*
+			event handler called on a successful geocode response
+			*/
+			private function onGeocodeResponse(event:GeocoderEvent):void {
+				this.parentApplication.toggleBusyIndicator(false,this);
+				
+				this.parentApplication.removeShapesFromMap();
+				
+				this.searchShapeCollection = new ShapeCollection();
+				this.searchShapeCollection.name = "searchShapeCollection";
+				
+				
+				//make an object to be displayed in the results list
+				this.acResults = new ArrayCollection();
+
+				
+				//loop through the results grabbing each location
+				for (var i:int =0; i < event.geocoderResponse.locations.length; i++) {
+					var loc:GeocoderLocation = event.geocoderResponse.locations[i];
+					
+					//male a new poi
+					var p:Poi = new Poi(new LatLng(Number(loc.displayLatLng.lat),Number(loc.displayLatLng.lng)));
+					
+					//override defaults for high resolution devices
+					if (this.parentApplication.applicationDPI >= 240) {
+						var pmi:PinMapIcon = (p.icon as PinMapIcon);
+						pmi.iconWidth = 48;
+						p.icon = pmi;
+					}
+
+					
+					//make a textfield
+					var tf:TextField = new TextField();
+					tf.autoSize = TextFieldAutoSize.LEFT;
+					tf.multiline = true;
+					tf.wordWrap = true;
+					tf.addEventListener(TextEvent.LINK, onGeocodeDirClick,false,0,true);
+					
+					
+					var s:String = new String();
+					s += "<font face='Arial' color='#000000' size='12'>LatLng: " + loc.displayLatLng.lat + ", " + loc.displayLatLng.lng + "</font>\n";
+
+					
+					//set the html text property of the textfield to the string
+					tf.htmlText = s + "\n";
+					
+					//set the infocontent of the poi to the textfield
+					p.infoContent = tf;
+					
+					//ad dthe new poi to the search shapecollection
+					this.searchShapeCollection.add(p);
+					
+					//add the result to the list
+					var o:Object = new Object();
+					o.listIcon = "assets/poi_gray.png";
+					o.name = loc.city + ", " + loc.state + " - " + loc.adminArea4;
+					o.latLng = p.latLng;
+					
+					
+					if (o.latLng.toString() == "39.527596,-99.141968") {
+						o.name = "Center of Unites States";
+					}
+					
+					//add the result to the arraycollection
+					this.acResults.addItem(o);
+				}
+				
+				var obj:Object = new Object();
+				obj.arrayCollection = this.acResults;
+				obj.shapeCollection = this.searchShapeCollection;
+				
+				if (this.navigator) this.navigator.pushView(SearchResultsListView,obj);
+			}
+
+			
+			
+			private function onGeocodeDirClick(event:TextEvent):void {
+				var a:Array = event.text.split("-");
+				var data:Object = new Object();
+				
+				switch (a[0]) {
+					case "dirT":
+						data.directionsTo = a[1];
+						break;
+					case "dirF":
+						data.directionsFrom = a[1];
+						break;
+				}
+				
+				this.parentApplication.map.infoWindow.hide();
+				if (this.navigator) this.navigator.pushView(DirectionsView,data);
+			}
+
+
+				
+
+			
+			
+		]]>
+	</fx:Script>
+	
+	
+	
+	<s:navigationContent>
+		<s:Button label="Back" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.popView();}}"/>
+	</s:navigationContent>
+	
+	
+	<s:actionContent>
+		<s:Button label="Configure" styleName="backButton" click="{this.parentApplication.toggleBusyIndicator(true,this); if (this.navigator) {this.navigator.pushView(ConfigureSearchView);}}"/>
+	</s:actionContent>
+	
+	
+	
+	
+	<s:Scroller width="100%" height="100%" left="7" right="7" top="10" bottom="10">
+		
+		<s:VGroup>
+			
+			<s:VGroup>
+				<s:Label id="lblPrompt" text="Business:"/>
+				<s:TextInput id="txtSearchTerm" change="{this.lblError.visible = false;}"
+							 prompt="Business" tabIndex="0" textAlign="justify"/>				
+			</s:VGroup>
+			
+			<s:Spacer height="15"/>
+			
+			<s:VGroup>
+				<s:Label id="lblLocation" text="Location:"/>
+				<s:TextInput id="txtSearchOrigin" change="{this.lblError.visible = false;}"
+							 prompt="Location" tabIndex="1" textAlign="justify"/>
+			</s:VGroup>
+
+			<s:Spacer height="10"/>
+			
+			<s:Button id="btnSearch" label="Search"
+					  click="{this.parentApplication.toggleBusyIndicator(true,this); this.doSearch();}"
+					  />
+			
+			
+			<s:Spacer height="10"/>
+			
+			<s:Label id="lblError" visible="false" styleName="redLabel" maxWidth="{this.width - 7}"/>
+
+		</s:VGroup>
+
+	</s:Scroller>	
+
+</s:View>

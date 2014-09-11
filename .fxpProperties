@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<fxpProperties abbreviated="false" authoringTool="Flex Builder" compiles="true" parentProject="9fef8b39-109b-41ef-8659-7c84d26031d0" projectUUID="9fef8b39-109b-41ef-8659-7c84d26031d0" pureCatalystProject="false" sdkVersion="4.6.0" uuid="08cd4256-56e8-4c3e-95b1-f66597c42963" version="15">
+  <projects/>
+  <src/>
+  <swc>
+    <linked location="sdkPlaceHolder" path="sdkPlaceHolder" position="0" uuid="08cd4256-56e8-4c3e-95b1-f66597c42963"/>
+    <linked location="C:/ActionScript/trunk/MQMobileSample/libs" path="/libs" position="1" uuid="52eaaa69-9a30-45d9-bef3-3d6c5d755735"/>
+  </swc>
+  <misc/>
+  <theme/>
+  <mxmlFormattingPrefs groupAttributesByState="true" maxLineWidth="100" mxmlAlignAttributes="true" mxmlAttributeOrder="id,userLabel,includeIn,excludeFrom,visible,x,y,z,left,right,top,bottom,width,height,minWidth,minHeight,maxWidth,maxHeight,label" mxmlKeepAttributeValuesOrganized="true"/>
+</fxpProperties>
